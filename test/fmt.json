@@ -1,0 +1,5 @@
+{ "rows": [
+  { "no":1, "suppInvNo":"X1", "amountBeforeTax":"45000",    "totalInvoiceAmount":"100", "invTaxAmount":"100", "invTaxNo":"189", "file":"fmt1.png" },
+  { "no":2, "suppInvNo":"X1", "amountBeforeTax":"45.000",   "totalInvoiceAmount":"100", "invTaxAmount":"100", "invTaxNo":"189", "file":"fmt2.png" },
+  { "no":3, "suppInvNo":"X1", "amountBeforeTax":"45000.00", "totalInvoiceAmount":"100", "invTaxAmount":"100", "invTaxNo":"189", "file":"fmt3.png" }
+] }

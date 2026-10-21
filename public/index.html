@@ -5,88 +5,140 @@
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Invoice Vision — Import & Generate QR</title>
 <style>
-  :root { --bg:#f4f6fb; --card:#fff; --ink:#1f2937; --muted:#6b7280; --line:#e5e7eb;
-          --brand:#1f4e78; --brand2:#2563eb; --ok:#16a34a; --okbg:#ecfdf5; --err:#dc2626; --errbg:#fef2f2; }
+  :root {
+    --bg:#eef1f6; --card:#ffffff; --ink:#1f2933; --muted:#64748b; --line:#e5e9f0;
+    --brand:#e02424; --brand-dark:#b91c1c; --accent:#1f4e78;
+    --ok:#15803d; --okbg:#f0fdf4; --okline:#bbf7d0;
+    --err:#dc2626; --errbg:#fef2f2; --errline:#fecaca;
+    --pend:#1d4ed8; --pendbg:#eff6ff;
+    --shadow:0 1px 2px rgba(16,24,40,.04), 0 4px 16px rgba(16,24,40,.06);
+  }
   * { box-sizing:border-box; }
-  body { margin:0; font:14px/1.5 system-ui,Segoe UI,Roboto,sans-serif; background:var(--bg); color:var(--ink); }
-  header { background:var(--brand); color:#fff; padding:18px 24px; }
-  header h1 { margin:0; font-size:18px; } header p { margin:4px 0 0; opacity:.85; font-size:12px; }
-  main { max-width:1040px; margin:20px auto; padding:0 16px; display:grid; gap:16px; }
-  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:18px; }
-  .card h2 { margin:0 0 12px; font-size:15px; }
+  body { margin:0; font:14px/1.55 "Segoe UI",system-ui,Roboto,sans-serif; background:var(--bg); color:var(--ink); }
+
+  header { background:var(--card); border-bottom:1px solid var(--line); box-shadow:var(--shadow); }
+  .head-inner { max-width:1080px; margin:0 auto; padding:14px 20px; display:flex; align-items:center; gap:14px; }
+  .head-inner img { height:46px; width:auto; }
+  .head-text h1 { margin:0; font-size:17px; font-weight:700; letter-spacing:.2px; }
+  .head-text p { margin:2px 0 0; font-size:12px; color:var(--muted); }
+  .head-accent { height:3px; background:linear-gradient(90deg,var(--brand),var(--brand-dark)); }
+
+  main { max-width:1080px; margin:22px auto; padding:0 16px; display:grid; gap:18px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:20px; box-shadow:var(--shadow); }
+  .card-head { display:flex; align-items:center; gap:10px; margin:0 0 16px; }
+  .step-no { flex:none; width:26px; height:26px; border-radius:8px; background:var(--brand); color:#fff;
+             font-weight:700; font-size:13px; display:grid; place-items:center; }
+  .card h2 { margin:0; font-size:15px; font-weight:700; }
+
   .row { display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
-  button, .btn { border:1px solid var(--line); background:#fff; color:var(--ink); padding:9px 14px; border-radius:8px;
-          font-weight:600; cursor:pointer; font-size:13px; }
-  button.primary { background:var(--brand2); color:#fff; border-color:var(--brand2); }
+  button, .btn { border:1px solid var(--line); background:#fff; color:var(--ink); padding:9px 15px; border-radius:9px;
+          font-weight:600; cursor:pointer; font-size:13px; transition:.15s; font-family:inherit; }
+  button:hover, .btn:hover { border-color:#cbd5e1; background:#f8fafc; }
+  button.primary { background:var(--brand); color:#fff; border-color:var(--brand); }
+  button.primary:hover { background:var(--brand-dark); border-color:var(--brand-dark); }
   button.ok { background:var(--ok); color:#fff; border-color:var(--ok); }
-  button:disabled { opacity:.5; cursor:not-allowed; }
+  button.ok:hover { background:#166534; border-color:#166534; }
+  button:disabled { opacity:.45; cursor:not-allowed; }
   .muted { color:var(--muted); }
-  table { width:100%; border-collapse:collapse; font-size:13px; }
-  th,td { padding:7px 9px; border-bottom:1px solid var(--line); text-align:left; vertical-align:top; }
-  th { background:#f9fafb; position:sticky; top:0; }
-  .scroll { max-height:46vh; overflow:auto; border:1px solid var(--line); border-radius:8px; }
-  .badge { display:inline-block; padding:2px 8px; border-radius:999px; font-size:11px; font-weight:700; }
-  .b-ok { background:var(--okbg); color:var(--ok); } .b-err { background:var(--errbg); color:var(--err); }
-  .b-pending { background:#eff6ff; color:var(--brand2); }
-  .alert { padding:10px 12px; border-radius:8px; font-size:13px; }
-  .alert.ok { background:var(--okbg); color:#065f46; } .alert.err { background:var(--errbg); color:#991b1b; }
+
+  table { width:100%; border-collapse:collapse; font-size:12.5px; }
+  th,td { padding:9px 11px; border-bottom:1px solid var(--line); text-align:left; vertical-align:middle; white-space:nowrap; }
+  thead th { background:#f8fafc; color:#475569; font-weight:700; font-size:11px; letter-spacing:.4px;
+             text-transform:uppercase; position:sticky; top:0; z-index:1; }
+  tbody tr:hover { background:#fafbfc; }
+  .scroll { max-height:48vh; overflow:auto; border:1px solid var(--line); border-radius:10px; }
   .num { text-align:right; font-variant-numeric:tabular-nums; }
-  ul.errs { margin:4px 0 0; padding-left:16px; color:var(--err); font-size:12px; }
-  .gallery { display:grid; grid-template-columns:repeat(auto-fill,minmax(130px,1fr)); gap:12px; }
-  .qr { border:1px solid var(--line); border-radius:8px; padding:8px; text-align:center; background:#fff; }
-  .qr img { width:100%; aspect-ratio:1; object-fit:contain; image-rendering:pixelated; background:#fff; }
-  .qr .cap { font-size:11px; margin-top:6px; word-break:break-all; }
-  .bar { height:8px; background:var(--line); border-radius:999px; overflow:hidden; }
-  .bar > i { display:block; height:100%; background:var(--ok); width:0; transition:width .3s; }
+  .mono { font-family:"Cascadia Code",Consolas,monospace; }
+
+  .badge { display:inline-flex; align-items:center; gap:4px; padding:3px 9px; border-radius:999px; font-size:11px; font-weight:700; border:1px solid transparent; }
+  .b-ok { background:var(--okbg); color:var(--ok); border-color:var(--okline); }
+  .b-err { background:var(--errbg); color:var(--err); border-color:var(--errline); }
+  .b-pending { background:var(--pendbg); color:var(--pend); border-color:#bfdbfe; }
+
+  .alert { padding:11px 14px; border-radius:10px; font-size:13px; border:1px solid transparent; }
+  .alert.ok { background:var(--okbg); color:#14532d; border-color:var(--okline); }
+  .alert.err { background:var(--errbg); color:#7f1d1d; border-color:var(--errline); }
+
+  ul.errs { margin:4px 0 0; padding-left:16px; color:var(--err); font-size:11.5px; white-space:normal; }
+
+  .bar { height:8px; background:#eef2f7; border-radius:999px; overflow:hidden; border:1px solid var(--line); }
+  .bar > i { display:block; height:100%; background:linear-gradient(90deg,var(--ok),#22c55e); width:0; transition:width .35s; }
+
+  .qr-thumb { width:56px; height:56px; object-fit:contain; background:#fff; border:1px solid var(--line); border-radius:8px; padding:3px; image-rendering:pixelated; display:block; }
+  .qr-cell { width:72px; }
+  .link { color:var(--brand); font-weight:600; text-decoration:none; font-size:12px; }
+  .link:hover { text-decoration:underline; }
   input[type=file]{ display:none; }
+  .foot { text-align:center; color:var(--muted); font-size:11.5px; padding:4px 0 24px; }
 </style>
 </head>
 <body>
 <header>
-  <h1>Invoice Vision</h1>
-  <p>Import Excel invoice → generate QR massal lewat aplikasi VISION Invoice Digital Transformation</p>
+  <div class="head-inner">
+    <img src="/images/logo.png" alt="STEP" />
+    <div class="head-text">
+      <h1>Invoice Vision</h1>
+      <p>Import Excel invoice → generate QR massal (VISION Invoice Digital Transformation)</p>
+    </div>
+  </div>
+  <div class="head-accent"></div>
 </header>
 
 <main>
   <section class="card">
-    <h2>1. Siapkan & upload file</h2>
+    <div class="card-head"><span class="step-no">1</span><h2>Siapkan &amp; Upload File</h2></div>
     <div class="row">
       <button id="btnTemplate">⬇ Download Template</button>
       <label class="btn" for="file">📄 Pilih File Excel</label>
       <input id="file" type="file" accept=".xlsx" />
       <span id="fname" class="muted"></span>
     </div>
-    <div id="previewMsg" style="margin-top:12px"></div>
+    <div id="previewMsg" style="margin-top:14px"></div>
     <div id="previewWrap" style="margin-top:12px"></div>
-    <div class="row" id="importRow" style="margin-top:12px; display:none">
+    <div class="row" id="importRow" style="margin-top:14px; display:none">
       <button id="btnImport" class="primary">✓ Simpan sebagai Job</button>
     </div>
   </section>
 
   <section class="card" id="jobCard" style="display:none">
-    <h2>2. Generate QR</h2>
+    <div class="card-head"><span class="step-no">2</span><h2>Generate QR</h2></div>
     <div id="jobMsg"></div>
-    <div class="row" style="margin:10px 0">
+    <div class="row" style="margin:12px 0">
       <button id="btnGenerate" class="ok">▶ Generate Semua QR</button>
       <button id="btnRefresh">⟳ Refresh</button>
-      <button id="btnZip">⬇ Download Semua (ZIP)</button>
       <span id="genState" class="muted"></span>
     </div>
     <div class="bar"><i id="progFill"></i></div>
-    <p id="progText" class="muted" style="margin:6px 0 0"></p>
-    <div class="scroll" style="margin-top:12px">
+    <p id="progText" class="muted" style="margin:8px 0 0"></p>
+    <div class="scroll" style="margin-top:14px">
       <table>
-        <thead><tr><th>#</th><th>SUPP_INV_NO</th><th class="num">Before Tax</th><th class="num">Total</th>
-          <th class="num">Tax</th><th>Tax No</th><th>QR</th></tr></thead>
+        <thead><tr>
+          <th>#</th><th>SUPP_INV_NO</th><th class="num">AMOUNT_BEFORE_TAX</th>
+          <th class="num">TOTAL_INVOICE_AMOUNT</th><th class="num">INV_TAX_AMOUNT</th>
+          <th>INV_TAX_NO</th><th>STATUS</th></tr></thead>
         <tbody id="jobBody"></tbody>
       </table>
     </div>
   </section>
 
   <section class="card" id="galleryCard" style="display:none">
-    <h2>3. Hasil QR</h2>
-    <div id="gallery" class="gallery"></div>
+    <div class="card-head"><span class="step-no">3</span><h2>Hasil QR</h2></div>
+    <div class="row" style="margin-bottom:14px">
+      <button id="btnZip" class="primary">⬇ Download Semua (ZIP)</button>
+      <span id="resultState" class="muted"></span>
+    </div>
+    <div class="scroll">
+      <table>
+        <thead><tr>
+          <th>#</th><th>SUPP_INV_NO</th><th class="num">AMOUNT_BEFORE_TAX</th>
+          <th class="num">TOTAL_INVOICE_AMOUNT</th><th class="num">INV_TAX_AMOUNT</th>
+          <th>INV_TAX_NO</th><th class="qr-cell">QR</th><th>FILE</th></tr></thead>
+        <tbody id="resultBody"></tbody>
+      </table>
+    </div>
   </section>
+
+  <div class="foot">STEP · Invoice Vision</div>
 </main>
 
 <script>
@@ -94,6 +146,8 @@ const $ = (s) => document.querySelector(s);
 let file = null, pollTimer = null;
 
 async function jget(u){ const r = await fetch(u); if(!r.ok) throw new Error((await r.json().catch(()=>({}))).message||r.statusText); return r.json(); }
+function esc(s){ return String(s==null?'':s).replace(/[&<>]/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c])); }
+function num(v){ const n=Number(v); return isNaN(n)? esc(v) : n.toLocaleString("id-ID"); }
 
 $("#btnTemplate").onclick = () => location.href = "/api/template";
 
@@ -108,10 +162,8 @@ $("#file").onchange = async (e) => {
     const data = await r.json();
     if(!r.ok) throw new Error(data.message);
     renderPreview(data);
-  } catch(err){ $("#previewMsg").innerHTML = `<div class="alert err">${err.message}</div>`; }
+  } catch(err){ $("#previewMsg").innerHTML = `<div class="alert err">${esc(err.message)}</div>`; }
 };
-
-function num(v){ const n=Number(v); return isNaN(n)? v : n.toLocaleString("id-ID"); }
 
 function renderPreview(data){
   const s = data.summary;
@@ -120,18 +172,18 @@ function renderPreview(data){
     : `<div class="alert err">${s.invalid} dari ${s.total} baris error. Perbaiki file lalu pilih ulang.</div>`;
   const rows = data.rows.map(r => `
     <tr style="${r.errors.length?'background:#fef2f2':''}">
-      <td>${r.baris}</td>
+      <td class="muted">${r.baris}</td>
       <td>${r.errors.length? '<span class="badge b-err">Error</span>' : '<span class="badge b-ok">OK</span>'}</td>
-      <td>${esc(r.suppInvNo)}</td>
+      <td class="mono">${esc(r.suppInvNo)}</td>
       <td class="num">${num(r.amountBeforeTax)}</td>
       <td class="num">${num(r.totalInvoiceAmount)}</td>
       <td class="num">${num(r.invTaxAmount)}</td>
-      <td>${esc(r.invTaxNo)}
+      <td class="mono">${esc(r.invTaxNo)}
         ${r.errors.length? `<ul class="errs">${r.errors.map(e=>`<li>${esc(e)}</li>`).join("")}</ul>`:''}</td>
     </tr>`).join("");
   $("#previewWrap").innerHTML = `<div class="scroll"><table>
-    <thead><tr><th>Baris</th><th>Cek</th><th>SUPP_INV_NO</th><th class="num">Before Tax</th>
-      <th class="num">Total</th><th class="num">Tax</th><th>INV_TAX_NO</th></tr></thead>
+    <thead><tr><th>Baris</th><th>Cek</th><th>SUPP_INV_NO</th><th class="num">AMOUNT_BEFORE_TAX</th>
+      <th class="num">TOTAL_INVOICE_AMOUNT</th><th class="num">INV_TAX_AMOUNT</th><th>INV_TAX_NO</th></tr></thead>
     <tbody>${rows}</tbody></table></div>`;
   $("#importRow").style.display = data.valid ? "flex" : "none";
 }
@@ -141,7 +193,7 @@ $("#btnImport").onclick = async () => {
   const fd = new FormData(); fd.append("file", file);
   const r = await fetch("/api/import", { method:"POST", body:fd });
   const data = await r.json();
-  if(!r.ok){ $("#previewMsg").innerHTML = `<div class="alert err">${data.message}</div>`; return; }
+  if(!r.ok){ $("#previewMsg").innerHTML = `<div class="alert err">${esc(data.message)}</div>`; return; }
   $("#jobCard").style.display = "block";
   await refresh();
   $("#jobCard").scrollIntoView({ behavior:"smooth" });
@@ -150,14 +202,20 @@ $("#btnImport").onclick = async () => {
 $("#btnGenerate").onclick = async () => {
   const r = await fetch("/api/generate", { method:"POST" });
   const data = await r.json();
-  if(!r.ok){ $("#jobMsg").innerHTML = `<div class="alert err">${data.message}</div>`; return; }
-  $("#jobMsg").innerHTML = `<div class="alert ok">${data.message}</div>`;
+  if(!r.ok){ $("#jobMsg").innerHTML = `<div class="alert err">${esc(data.message)}</div>`; return; }
+  $("#jobMsg").innerHTML = `<div class="alert ok">${esc(data.message)}</div>`;
   startPolling();
 };
 $("#btnRefresh").onclick = refresh;
 $("#btnZip").onclick = () => location.href = "/api/download-zip";
 
-function esc(s){ return String(s==null?'':s).replace(/[&<>]/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c])); }
+function fieldCells(r){
+  return `<td class="mono">${esc(r.suppInvNo)}</td>
+    <td class="num">${num(r.amountBeforeTax)}</td>
+    <td class="num">${num(r.totalInvoiceAmount)}</td>
+    <td class="num">${num(r.invTaxAmount)}</td>
+    <td class="mono">${esc(r.invTaxNo)}</td>`;
+}
 
 async function refresh(){
   const st = await jget("/api/status");
@@ -167,22 +225,26 @@ async function refresh(){
   const done = st.done, total = st.total;
   $("#progFill").style.width = total? (done/total*100)+"%" : "0";
   $("#progText").textContent = `${done} / ${total} QR selesai`;
+
   $("#jobBody").innerHTML = st.job.rows.map(r => `
-    <tr><td>${r.no}</td><td>${esc(r.suppInvNo)}</td>
-      <td class="num">${num(r.amountBeforeTax)}</td><td class="num">${num(r.totalInvoiceAmount)}</td>
-      <td class="num">${num(r.invTaxAmount)}</td><td>${esc(r.invTaxNo)}</td>
+    <tr><td class="muted">${r.no}</td>${fieldCells(r)}
       <td>${r.hasQr? '<span class="badge b-ok">✓ ada</span>' : '<span class="badge b-pending">pending</span>'}</td>
     </tr>`).join("");
+
   const withQr = st.job.rows.filter(r=>r.hasQr);
   $("#galleryCard").style.display = withQr.length? "block":"none";
-  $("#gallery").innerHTML = withQr.map(r => `
-    <div class="qr"><img src="/api/qr/${encodeURIComponent(r.file)}?t=${Date.now()}" alt="${esc(r.suppInvNo)}" />
-      <div class="cap">${esc(r.suppInvNo)}</div></div>`).join("");
+  $("#resultState").textContent = withQr.length? `${withQr.length} QR siap diunduh` : "";
+  $("#resultBody").innerHTML = withQr.map(r => {
+    const url = `/api/qr/${encodeURIComponent(r.file)}?t=${Date.now()}`;
+    return `<tr><td class="muted">${r.no}</td>${fieldCells(r)}
+      <td><a href="${url}" target="_blank"><img class="qr-thumb" src="${url}" alt="QR ${esc(r.suppInvNo)}" /></a></td>
+      <td><a class="link" href="${url}" download="${esc(r.file)}">${esc(r.file)}</a></td></tr>`;
+  }).join("");
+
   if(!st.generating && pollTimer){ clearInterval(pollTimer); pollTimer=null; }
 }
 
 function startPolling(){ if(pollTimer) clearInterval(pollTimer); pollTimer = setInterval(refresh, 1500); refresh(); }
-
 refresh().catch(()=>{});
 </script>
 </body>

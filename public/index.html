@@ -6,7 +6,7 @@
 <title>Invoice Vision — Import & Generate QR</title>
 <style>
   :root {
-    --bg:#eef1f6; --card:#ffffff; --ink:#1f2933; --muted:#64748b; --line:#e5e9f0;
+    --bg:#ffffff; --card:#ffffff; --ink:#1f2933; --muted:#64748b; --line:#e5e9f0;
     --brand:#e02424; --brand-dark:#b91c1c; --accent:#1f4e78;
     --ok:#15803d; --okbg:#f0fdf4; --okline:#bbf7d0;
     --err:#dc2626; --errbg:#fef2f2; --errline:#fecaca;
@@ -16,7 +16,8 @@
   * { box-sizing:border-box; }
   body { margin:0; font:14px/1.55 "Segoe UI",system-ui,Roboto,sans-serif; background:var(--bg); color:var(--ink); }
 
-  header { background:var(--card); border-bottom:1px solid var(--line); box-shadow:var(--shadow); }
+  header { background:var(--card); border-bottom:1px solid var(--line); box-shadow:var(--shadow);
+           position:sticky; top:0; z-index:50; }
   .head-inner { max-width:1080px; margin:0 auto; padding:14px 20px; display:flex; align-items:center; gap:14px; }
   .head-inner img { height:46px; width:auto; }
   .head-text h1 { margin:0; font-size:17px; font-weight:700; letter-spacing:.2px; }
@@ -124,7 +125,7 @@
   <section class="card" id="galleryCard" style="display:none">
     <div class="card-head"><span class="step-no">3</span><h2>Hasil QR</h2></div>
     <div class="row" style="margin-bottom:14px">
-      <button id="btnZip" class="primary">⬇ Download Semua (ZIP)</button>
+      <button id="btnExcel" class="primary">⬇ Export Excel</button>
       <span id="resultState" class="muted"></span>
     </div>
     <div class="scroll">
@@ -207,7 +208,7 @@ $("#btnGenerate").onclick = async () => {
   startPolling();
 };
 $("#btnRefresh").onclick = refresh;
-$("#btnZip").onclick = () => location.href = "/api/download-zip";
+$("#btnExcel").onclick = () => location.href = "/api/export-excel";
 
 function fieldCells(r){
   return `<td class="mono">${esc(r.suppInvNo)}</td>

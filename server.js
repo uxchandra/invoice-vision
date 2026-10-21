@@ -181,6 +181,66 @@ app.get("/api/download-zip", async (_req, res) => {
   await zip.finalize();
 });
 
+// Export isi tabel Hasil QR ke Excel (dengan gambar QR disematkan)
+app.get("/api/export-excel", async (_req, res) => {
+  if (!job || job.rows.length === 0) return res.status(404).json({ message: "Belum ada data" });
+  const files = new Set(await fs.readdir(QR_DIR));
+  const rows = job.rows.filter((r) => files.has(r.file));
+  if (rows.length === 0) return res.status(404).json({ message: "Belum ada QR yang digenerate" });
+
+  const ExcelJS = (await import("exceljs")).default;
+  const wb = new ExcelJS.Workbook();
+  const ws = wb.addWorksheet("Hasil QR", { views: [{ state: "frozen", ySplit: 1 }] });
+  ws.columns = [
+    { header: "SUPP_INV_NO", key: "suppInvNo", width: 18 },
+    { header: "AMOUNT_BEFORE_TAX", key: "amountBeforeTax", width: 20 },
+    { header: "TOTAL_INVOICE_AMOUNT", key: "totalInvoiceAmount", width: 22 },
+    { header: "INV_TAX_AMOUNT", key: "invTaxAmount", width: 18 },
+    { header: "INV_TAX_NO", key: "invTaxNo", width: 18 },
+    { header: "QR", key: "qr", width: 12 },
+    { header: "FILE", key: "file", width: 24 },
+  ];
+  const thin = { style: "thin" };
+  ws.getRow(1).eachCell((cell) => {
+    cell.font = { bold: true, color: { argb: "FFFFFFFF" } };
+    cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFB91C1C" } };
+    cell.alignment = { vertical: "middle", horizontal: "center", wrapText: true };
+    cell.border = { top: thin, left: thin, bottom: thin, right: thin };
+  });
+
+  const num = (v) => (isNaN(Number(v)) ? v : Number(v));
+  for (let i = 0; i < rows.length; i++) {
+    const r = rows[i];
+    const row = ws.addRow({
+      suppInvNo: r.suppInvNo,
+      amountBeforeTax: num(r.amountBeforeTax),
+      totalInvoiceAmount: num(r.totalInvoiceAmount),
+      invTaxAmount: num(r.invTaxAmount),
+      invTaxNo: r.invTaxNo,
+      qr: "",
+      file: r.file,
+    });
+    row.height = 60;
+    row.getCell("suppInvNo").numFmt = "@"; // teks: jaga nol depan
+    row.getCell("invTaxNo").numFmt = "@";
+    [2, 3, 4].forEach((c) => (row.getCell(c).numFmt = "#,##0"));
+    row.eachCell((cell) => (cell.alignment = { vertical: "middle" }));
+
+    try {
+      const buffer = await fs.readFile(path.join(QR_DIR, r.file));
+      const imgId = wb.addImage({ buffer, extension: "png" });
+      // kolom QR = index 5 (0-based), baris data mulai 1 (0-based untuk row index)
+      ws.addImage(imgId, { tl: { col: 5.2, row: row.number - 1 + 0.1 }, ext: { width: 72, height: 72 } });
+    } catch {
+      /* lewati jika file hilang */
+    }
+  }
+
+  res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+  res.setHeader("Content-Disposition", 'attachment; filename="hasil-qr-invoice.xlsx"');
+  res.send(Buffer.from(await wb.xlsx.writeBuffer()));
+});
+
 app.get("/api/columns", (_req, res) => res.json(COLUMNS.map((c) => ({ key: c.key, header: c.header }))));
 
 app.listen(PORT, () => console.log(`Invoice Vision jalan di http://localhost:${PORT}`));

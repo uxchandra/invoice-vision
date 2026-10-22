@@ -1,23 +1,22 @@
+import "dotenv/config";
 import express from "express";
 import multer from "multer";
 import archiver from "archiver";
-import { spawn } from "node:child_process";
 import { createReadStream } from "node:fs";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { COLUMNS, parseInvoiceWorkbook, buildInvoiceTemplate } from "./src/excel.js";
+import { generateRow, validateKey } from "./src/vision-qr.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DATA_DIR = path.join(__dirname, "data");
 const QR_DIR = path.join(DATA_DIR, "qr");
 const JOB_FILE = path.join(DATA_DIR, "job.json");
 const RESULT_FILE = path.join(DATA_DIR, "result.json");
-const PS_SCRIPT = path.join(__dirname, "src", "automation.ps1");
 
-// Lokasi aplikasi VISION; bisa dioverride lewat env EXE_PATH
-const EXE_PATH =
-  process.env.EXE_PATH || path.join(process.env.USERPROFILE || "C:\\Users\\user", "Downloads", "qr_gen_2025.v.exe");
+// Private key enkripsi (16 digit = AES-128), diambil dari .env
+const PRIVATE_KEY = process.env.PRIVATE_KEY || "";
 
 const PORT = Number(process.env.PORT) || 4000;
 
@@ -122,46 +121,42 @@ app.get("/api/status", async (_req, res) => {
   const files = new Set(await fs.readdir(QR_DIR));
   const rows = job.rows.map((r) => ({ ...r, hasQr: files.has(r.file) }));
   const done = rows.filter((r) => r.hasQr).length;
-  res.json({ generating, exePath: EXE_PATH, job: { ...job, rows }, done, total: rows.length });
+  res.json({ generating, keyReady: validateKey(PRIVATE_KEY), job: { ...job, rows }, done, total: rows.length });
 });
 
-// Jalankan worker PowerShell untuk generate semua QR
+// Proses semua baris: susun plaintext VISION, enkripsi, render PNG
+async function processJob() {
+  const results = [];
+  let ok = 0;
+  for (const row of job.rows) {
+    try {
+      const { plaintext, payload, png } = await generateRow(row, PRIVATE_KEY);
+      await fs.writeFile(path.join(QR_DIR, row.file), png);
+      ok++;
+      results.push({ no: row.no, suppInvNo: row.suppInvNo, file: row.file, ok: true, plaintext, payload });
+    } catch (err) {
+      results.push({ no: row.no, suppInvNo: row.suppInvNo, file: row.file, ok: false, error: String(err?.message || err) });
+    }
+  }
+  await fs.writeFile(
+    RESULT_FILE,
+    JSON.stringify({ total: job.rows.length, ok, gagal: job.rows.length - ok, results, finishedAt: new Date().toISOString() }, null, 2),
+  );
+  generating = false;
+}
+
+// Generate semua QR langsung di backend (tanpa aplikasi desktop)
 app.post("/api/generate", async (_req, res) => {
   if (!job || job.rows.length === 0) return res.status(422).json({ message: "Belum ada job. Import Excel dulu." });
   if (generating) return res.status(409).json({ message: "Proses generate sedang berjalan" });
-  if (process.platform !== "win32")
-    return res.status(422).json({ message: "Generate QR hanya bisa di Windows (butuh aplikasi VISION)." });
-
-  try {
-    await fs.access(EXE_PATH);
-  } catch {
-    return res.status(422).json({ message: `Aplikasi VISION tidak ditemukan di: ${EXE_PATH}` });
-  }
+  if (!validateKey(PRIVATE_KEY))
+    return res.status(422).json({ message: "PRIVATE_KEY belum di-set / panjang tidak valid (harus 16 digit). Cek file .env." });
 
   generating = true;
-  await fs.writeFile(JOB_FILE, JSON.stringify(job, null, 2));
   await fs.rm(RESULT_FILE, { force: true });
-
-  const ps = spawn(
-    "powershell.exe",
-    ["-NoProfile", "-Sta", "-ExecutionPolicy", "Bypass", "-File", PS_SCRIPT, "-JobFile", JOB_FILE, "-OutDir", QR_DIR, "-ExePath", EXE_PATH, "-ResultFile", RESULT_FILE],
-    { windowsHide: false },
-  );
-  let log = "";
-  ps.stdout.on("data", (d) => (log += d));
-  ps.stderr.on("data", (d) => (log += d));
-  ps.on("close", async (code) => {
-    generating = false;
-    let result = null;
-    try {
-      result = JSON.parse(await fs.readFile(RESULT_FILE, "utf8"));
-    } catch {
-      /* worker tidak menulis hasil */
-    }
-    await fs.writeFile(path.join(DATA_DIR, "last-run.log"), `exit ${code}\n${log}`);
-  });
-
-  res.json({ message: "Proses generate dimulai. Pantau progres di halaman ini." });
+  // Jalankan di belakang supaya UI bisa polling progres
+  processJob().catch(() => (generating = false));
+  res.json({ message: "Proses generate dimulai." });
 });
 
 app.get("/api/qr/:file", (req, res) => {

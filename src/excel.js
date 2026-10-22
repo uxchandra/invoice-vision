@@ -115,6 +115,10 @@ export async function buildInvoiceTemplate() {
   const ws = wb.addWorksheet("Invoice", { views: [{ state: "frozen", ySplit: 1 }] });
   ws.columns = COLUMNS.map((c) => ({ header: c.header, key: c.key, width: c.width }));
 
+  // SUPP_INV_NO & INV_TAX_NO sebagai TEKS supaya nol di depan & nomor panjang tidak rusak
+  ws.getColumn("suppInvNo").numFmt = "@";
+  ws.getColumn("invTaxNo").numFmt = "@";
+
   const thin = { style: "thin" };
   ws.getRow(1).eachCell((cell) => {
     cell.font = { bold: true, color: { argb: "FFFFFFFF" } };
@@ -124,24 +128,26 @@ export async function buildInvoiceTemplate() {
   });
 
   ws.addRow({
-    suppInvNo: "4363464363",
-    amountBeforeTax: 45000,
-    totalInvoiceAmount: 49500,
-    invTaxAmount: 4500,
-    invTaxNo: "010.000-25.00000001",
+    suppInvNo: "00176.I.23",
+    amountBeforeTax: 1195780140,
+    totalInvoiceAmount: 1327315955,
+    invTaxAmount: 146004755.05,
+    invTaxNo: "0100032361617140",
   });
 
   const guide = wb.addWorksheet("PETUNJUK");
-  guide.columns = [{ width: 110 }];
+  guide.columns = [{ width: 115 }];
   [
-    "PETUNJUK IMPORT INVOICE",
+    "PETUNJUK IMPORT INVOICE — VISION QR",
     "",
     '1. Isi data di sheet "Invoice" mulai baris 2. Satu baris = satu invoice = satu QR.',
     "2. Semua kolom wajib diisi.",
-    "3. SUPP_INV_NO dan INV_TAX_NO berupa teks/nomor, maksimal 60 karakter, SUPP_INV_NO tidak boleh dobel.",
-    "4. AMOUNT_BEFORE_TAX, TOTAL_INVOICE_AMOUNT, INV_TAX_AMOUNT berupa angka (boleh desimal).",
-    "5. Hapus baris contoh sebelum import.",
-    "6. Nama file QR hasil generate = SUPP_INV_NO.png",
+    "3. SUPP_INV_NO dan INV_TAX_NO berupa teks (kolomnya sudah diformat teks). SUPP_INV_NO tidak boleh dobel.",
+    "   Penting: ketik nomor faktur pajak sebagai teks agar nol di depan & 16 digit tidak berubah.",
+    "4. AMOUNT_BEFORE_TAX, TOTAL_INVOICE_AMOUNT, INV_TAX_AMOUNT berupa angka. Sistem otomatis",
+    "   memformat 2 desimal saat membuat QR (contoh 45000 => 45000.00).",
+    "5. QR berisi teks terenkripsi dari: VISION|SUPP_INV_NO|AMOUNT_BEFORE_TAX|TOTAL_INVOICE_AMOUNT|INV_TAX_AMOUNT|INV_TAX_NO",
+    "6. Hapus baris contoh sebelum import. Nama file QR hasil = SUPP_INV_NO.png",
   ].forEach((line, i) => {
     const cell = guide.getCell(i + 1, 1);
     cell.value = line;

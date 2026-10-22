@@ -1,33 +1,30 @@
 # Invoice Vision
 
-Aplikasi lokal untuk **import Excel invoice → generate QR massal** memakai aplikasi
-desktop **VISION Invoice Digital Transformation** (`qr_gen_2025.v.exe`).
+Aplikasi web **standalone** untuk **import Excel invoice → generate QR terenkripsi massal**.
+QR dibuat langsung di backend (tanpa aplikasi desktop), mengikuti spesifikasi resmi
+`VisionTmminVb` (VB.NET).
 
-Alih-alih mengetik satu per satu di aplikasi VISION, cukup siapkan Excel berisi
-banyak invoice, upload, lalu klik **Generate Semua QR**. Worker otomatis mengisi
-form aplikasi, menekan *Generate QR* dan *Copy*, lalu menyimpan tiap QR sebagai PNG
-(`<SUPP_INV_NO>.png`). QR dibuat sepenuhnya oleh aplikasi VISION resmi — aplikasi ini
-tidak membuat atau mengubah enkripsi QR apa pun, sehingga hasilnya identik dengan
-input manual.
+## Spesifikasi QR (replika dari source VB.NET)
 
-## Syarat
+- **Enkripsi:** AES (Rijndael) mode **CBC**, padding **PKCS7**
+- **Key:** `UTF8(PRIVATE_KEY)` — 16 digit → AES-128
+- **IV:** 16 byte nol
+- **Plaintext (ASCII):**
+  `VISION|<SUPP_INV_NO>|<AMOUNT_BEFORE_TAX>|<TOTAL_INVOICE_AMOUNT>|<INV_TAX_AMOUNT>|<INV_TAX_NO>`
+  dengan ketiga amount diformat 2 desimal (mis. `45000` → `45000.00`).
+- **Output:** Base64 → di-encode jadi QR (UTF-8, 500×500).
 
-- Windows (worker memakai otomasi Win32 + clipboard).
-- Node.js 18+.
-- Aplikasi `qr_gen_2025.v.exe` ada di komputer ini.
+Contoh (key `VISION0123456789`):
+```
+VISION|00176.I.23|1195780140.00|1327315955.00|146004755.05|0100032361617140
+→ OOzKH2RRr/1EL4N3IG8luSJLCgNaRGq4oz7q+tSzr/lGFAqMuy2CCblT7Oikj4nStModUZkMyX7WFgkM2BHs0imyfZdwb4SCxgZ6OnGnsSM=
+```
 
 ## Setup
 
 ```bash
 npm install
-```
-
-Lokasi aplikasi VISION default: `%USERPROFILE%\Downloads\qr_gen_2025.v.exe`.
-Kalau berbeda, set lewat environment variable `EXE_PATH`.
-
-## Menjalankan
-
-```bash
+cp .env.example .env    # lalu isi PRIVATE_KEY dengan key asli (16 digit)
 npm start
 ```
 
@@ -36,45 +33,45 @@ Buka http://localhost:4000
 1. **Download Template** → isi invoice di Excel (satu baris = satu QR).
 2. **Pilih File Excel** → cek preview (validasi otomatis).
 3. **Simpan sebagai Job**.
-4. **Generate Semua QR** → worker memproses semua baris (~2–3 detik per invoice).
-5. Lihat galeri, atau **Download Semua (ZIP)**.
+4. **Generate Semua QR** → QR dibuat instan di server.
+5. **Export Excel** (tabel Hasil QR + gambar QR tersemat), atau unduh per file.
 
-## PENTING — jangan jalankan VISION sebagai Administrator
+## Konfigurasi (.env)
 
-Worker meluncurkan instance aplikasi VISION-nya sendiri pada integrity **Medium**
-dan mengendalikannya lewat pesan Win32. Kalau aplikasi VISION dibuka **"Run as
-administrator"** (integrity High), Windows UIPI akan **memblokir** otomasi dan QR
-gagal dibuat. Biarkan worker yang membuka aplikasinya sendiri; tutup instance VISION
-yang terbuka manual sebagai admin bila ada.
+| Variable | Keterangan |
+|---|---|
+| `PRIVATE_KEY` | Private key enkripsi, **16 digit** (AES-128). Wajib. |
+| `PORT` | Port web (default 4000). |
+
+> `.env` berisi secret dan **tidak di-commit**. Gunakan `.env.example` sebagai acuan.
 
 ## Kolom Excel
 
 | Kolom | Wajib | Keterangan |
 |---|---|---|
-| SUPP_INV_NO | ya | Nomor invoice supplier (maks 60 char, tidak boleh dobel) |
-| AMOUNT_BEFORE_TAX | ya | Angka (boleh desimal) |
+| SUPP_INV_NO | ya | Nomor invoice supplier (teks, tidak boleh dobel) |
+| AMOUNT_BEFORE_TAX | ya | Angka (otomatis 2 desimal di QR) |
 | TOTAL_INVOICE_AMOUNT | ya | Angka |
 | INV_TAX_AMOUNT | ya | Angka |
-| INV_TAX_NO | ya | Nomor faktur pajak (maks 60 char) |
+| INV_TAX_NO | ya | Nomor faktur pajak — **ketik sebagai teks** agar nol depan/16 digit utuh |
 
-Nama header tidak case-sensitive dan mengenali beberapa alias (mis. `no_invoice`,
-`dpp`, `ppn`, `no_faktur_pajak`). Lihat `src/excel.js`.
+Header tidak case-sensitive dan mengenali beberapa alias (lihat `src/excel.js`).
 
 ## Struktur
 
 ```
-server.js            Express: UI, upload/parse Excel, trigger worker, galeri, ZIP
+server.js            Express: UI, import/parse Excel, generate QR, galeri, export Excel
 src/excel.js         Parse + validasi + template Excel (ExcelJS)
-src/automation.ps1   Worker PowerShell: isi form VISION, Generate, Copy, simpan PNG
+src/vision-qr.js     Mesin enkripsi AES + QR (replika Module1.vb)
 public/index.html    Antarmuka web
 data/qr/             Hasil PNG (di-reset tiap import baru)
+.env                 PRIVATE_KEY (tidak di-commit)
 ```
 
-## Cara kerja worker (ringkas)
+## Catatan
 
-1. `Start-Process qr_gen_2025.v.exe` → instance milik worker (Medium integrity).
-2. Petakan 5 `TEdit` (urut posisi) + tombol `Generate`/`Copy` lewat `EnumChildWindows`.
-3. Per baris: `WM_SETTEXT` ke 5 field → verifikasi `WM_GETTEXT` → klik Generate →
-   tunggu render → klik Copy → ambil bitmap dari clipboard → cek tidak kosong →
-   simpan PNG.
-4. Tutup instance di akhir.
+Versi sebelumnya menggerakkan aplikasi desktop `qr_gen_2025.v.exe` karena spesifikasi
+QR belum diketahui. Sejak spesifikasi `VisionTmminVb` didapat, QR dibuat langsung di
+backend — lebih cepat, lintas-platform, dan tak butuh aplikasi desktop.
+QR dari versi standalone ini mengikuti format VB.NET (ada prefix `VISION|` dan amount
+2 desimal), sehingga **berbeda** dengan QR aplikasi Delphi lama.

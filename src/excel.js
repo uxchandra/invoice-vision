@@ -52,10 +52,43 @@ function parseNumber(raw) {
   let s = raw.replace(/\s/g, "");
   // 1.234.567,89 (format ID) -> 1234567.89
   if (/,\d{1,2}$/.test(s) && s.includes(".")) s = s.replace(/\./g, "").replace(",", ".");
+  // 1.234.567 (pemisah ribuan titik, tanpa desimal) -> 1234567
+  else if (/^-?\d{1,3}(\.\d{3}){2,}$/.test(s)) s = s.replace(/\./g, "");
   else if (s.includes(",") && !s.includes(".")) s = s.replace(",", ".");
   else s = s.replace(/,/g, "");
   if (!/^-?\d+(\.\d+)?$/.test(s)) return { ok: false, empty: false };
   return { ok: true, value: Number(s), text: s };
+}
+
+// Validasi satu invoice (dari Excel maupun input manual). values = { suppInvNo, ..., invTaxNo } berupa teks.
+export function validateRow(input, baris) {
+  const values = Object.fromEntries(COLUMNS.map((c) => [c.key, String(input?.[c.key] ?? "").trim()]));
+  const errors = [];
+  const warnings = [];
+  const data = {};
+
+  if (!values.suppInvNo) errors.push("SUPP_INV_NO wajib diisi");
+  if (!values.invTaxNo) errors.push("INV_TAX_NO wajib diisi");
+  for (const c of COLUMNS) {
+    if (c.max && values[c.key].length > c.max) errors.push(`${c.header} maksimal ${c.max} karakter`);
+  }
+
+  data.suppInvNo = values.suppInvNo;
+  data.invTaxNo = values.invTaxNo;
+
+  for (const key of NUMERIC_KEYS) {
+    const col = COLUMNS.find((c) => c.key === key);
+    const parsed = parseNumber(values[key]);
+    if (!parsed.ok) {
+      errors.push(parsed.empty ? `${col.header} wajib diisi` : `${col.header} harus berupa angka (isi: "${values[key]}")`);
+      data[key] = values[key];
+    } else {
+      if (parsed.value < 0) errors.push(`${col.header} tidak boleh negatif`);
+      data[key] = parsed.text;
+    }
+  }
+
+  return { baris, ...data, errors, warnings };
 }
 
 export async function parseInvoiceWorkbook(buffer) {
@@ -76,33 +109,7 @@ export async function parseInvoiceWorkbook(buffer) {
     };
     const values = Object.fromEntries(COLUMNS.map((c) => [c.key, text(c.key)]));
     if (Object.values(values).every((v) => !v)) continue;
-
-    const errors = [];
-    const warnings = [];
-    const data = {};
-
-    if (!values.suppInvNo) errors.push("SUPP_INV_NO wajib diisi");
-    if (!values.invTaxNo) errors.push("INV_TAX_NO wajib diisi");
-    for (const c of COLUMNS) {
-      if (c.max && values[c.key].length > c.max) errors.push(`${c.header} maksimal ${c.max} karakter`);
-    }
-
-    data.suppInvNo = values.suppInvNo;
-    data.invTaxNo = values.invTaxNo;
-
-    for (const key of NUMERIC_KEYS) {
-      const col = COLUMNS.find((c) => c.key === key);
-      const parsed = parseNumber(values[key]);
-      if (!parsed.ok) {
-        errors.push(parsed.empty ? `${col.header} wajib diisi` : `${col.header} harus berupa angka (isi: "${values[key]}")`);
-        data[key] = values[key];
-      } else {
-        if (parsed.value < 0) errors.push(`${col.header} tidak boleh negatif`);
-        data[key] = parsed.text;
-      }
-    }
-
-    rows.push({ baris: r, ...data, errors, warnings });
+    rows.push(validateRow(values, r));
   }
 
   if (rows.length === 0) return { error: `Belum ada data invoice (mulai baris ${header.row + 1})` };
@@ -144,8 +151,8 @@ export async function buildInvoiceTemplate() {
     "2. Semua kolom wajib diisi.",
     "3. SUPP_INV_NO dan INV_TAX_NO berupa teks (kolomnya sudah diformat teks). SUPP_INV_NO tidak boleh dobel.",
     "   Penting: ketik nomor faktur pajak sebagai teks agar nol di depan & 16 digit tidak berubah.",
-    "4. AMOUNT_BEFORE_TAX, TOTAL_INVOICE_AMOUNT, INV_TAX_AMOUNT berupa angka. Sistem otomatis",
-    "   memformat 2 desimal saat membuat QR (contoh 45000 => 45000.00).",
+    "4. AMOUNT_BEFORE_TAX, TOTAL_INVOICE_AMOUNT, INV_TAX_AMOUNT berupa angka. Pemisah ribuan",
+    "   otomatis dibuang; nilai dipakai apa adanya (contoh 25.000.000 => 25000000).",
     "5. QR berisi teks terenkripsi dari: VISION|SUPP_INV_NO|AMOUNT_BEFORE_TAX|TOTAL_INVOICE_AMOUNT|INV_TAX_AMOUNT|INV_TAX_NO",
     "6. Hapus baris contoh sebelum import. Nama file QR hasil = SUPP_INV_NO.png",
   ].forEach((line, i) => {

@@ -22,11 +22,12 @@ export function validateKey(key) {
   return len === 16 || len === 24 || len === 32;
 }
 
-// Format nilai amount menjadi 2 desimal tanpa pemisah ribuan ("45000" -> "45000.00")
+// Bersihkan amount: buang pemisah ribuan, pakai nilai apa adanya (tanpa paksa desimal).
+// Mengikuti app VISION: 25000000 -> "25000000", 146004755.05 -> "146004755.05".
 export function formatAmount(value) {
   const n = Number(String(value).replace(/,/g, "."));
   if (!Number.isFinite(n)) return String(value);
-  return n.toFixed(2);
+  return String(n);
 }
 
 // Susun plaintext persis seperti contoh manual book

@@ -5,7 +5,8 @@
   "type": "module",
   "description": "Import Excel invoice lalu generate QR massal via aplikasi VISION Invoice Digital Transformation",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "dev": "node --watch server.js"
   },
   "dependencies": {
     "archiver": "^7.0.1",

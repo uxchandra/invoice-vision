@@ -6,7 +6,7 @@ import { createReadStream } from "node:fs";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { COLUMNS, parseInvoiceWorkbook, buildInvoiceTemplate } from "./src/excel.js";
+import { COLUMNS, parseInvoiceWorkbook, buildInvoiceTemplate, validateRow } from "./src/excel.js";
 import { generateRow, validateKey } from "./src/vision-qr.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -93,8 +93,34 @@ app.post("/api/import", upload.single("file"), async (req, res) => {
 
   const preview = buildPreview(parsed.rows);
   if (!preview.valid) return res.status(422).json({ message: "Masih ada baris error, cek preview dulu" });
+  await saveJob(preview);
+  res.status(201).json({ message: `${job.rows.length} invoice siap digenerate`, job });
+});
 
-  // Bersihkan QR lama
+// Input manual: body { rows: [{ suppInvNo, amountBeforeTax, totalInvoiceAmount, invTaxAmount, invTaxNo }] }
+function manualRows(body) {
+  const rows = Array.isArray(body?.rows) ? body.rows : [];
+  return rows.map((r, i) => validateRow(r, i + 1));
+}
+
+app.post("/api/preview-manual", (req, res) => {
+  const rows = manualRows(req.body);
+  if (rows.length === 0) return res.status(422).json({ message: "Belum ada invoice yang diisi" });
+  res.json(buildPreview(rows));
+});
+
+app.post("/api/import-manual", async (req, res) => {
+  if (generating) return res.status(409).json({ message: "Proses generate sedang berjalan" });
+  const rows = manualRows(req.body);
+  if (rows.length === 0) return res.status(422).json({ message: "Belum ada invoice yang diisi" });
+  const preview = buildPreview(rows);
+  if (!preview.valid) return res.status(422).json({ message: "Masih ada data error, cek daftar dulu" });
+  await saveJob(preview);
+  res.status(201).json({ message: `${job.rows.length} invoice siap digenerate`, job });
+});
+
+// Simpan preview valid sebagai job aktif (reset hasil QR lama)
+async function saveJob(preview) {
   for (const f of await fs.readdir(QR_DIR)) await fs.rm(path.join(QR_DIR, f));
 
   job = {
@@ -112,8 +138,7 @@ app.post("/api/import", upload.single("file"), async (req, res) => {
     summary: preview.summary,
   };
   await fs.writeFile(JOB_FILE, JSON.stringify(job, null, 2));
-  res.status(201).json({ message: `${job.rows.length} invoice siap digenerate`, job });
-});
+}
 
 // Status job + cek PNG mana yang sudah ada
 app.get("/api/status", async (_req, res) => {
@@ -238,4 +263,11 @@ app.get("/api/export-excel", async (_req, res) => {
 
 app.get("/api/columns", (_req, res) => res.json(COLUMNS.map((c) => ({ key: c.key, header: c.header }))));
 
-app.listen(PORT, () => console.log(`Invoice Vision jalan di http://localhost:${PORT}`));
+app
+  .listen(PORT, () => console.log(`Invoice Vision jalan di http://localhost:${PORT}`))
+  .on("error", (err) => {
+    if (err.code !== "EADDRINUSE") throw err;
+    console.error(`Port ${PORT} sudah dipakai (server lama masih jalan?). Matikan dulu, mis.:`);
+    console.error(`  Get-NetTCPConnection -LocalPort ${PORT} -State Listen | % { Stop-Process -Id $_.OwningProcess }`);
+    process.exit(1);
+  });

@@ -3,12 +3,40 @@ import ExcelJS from "exceljs";
 // ===== Kolom import invoice =====
 // Dikenali dari nama header (urutan bebas). Header dicari di 10 baris teratas.
 // Field mengikuti aplikasi VISION Invoice Digital Transformation.
+// Format export Coretax (Faktur Keluaran) dikenali lewat alias:
+//   Referensi -> SUPP_INV_NO, Harga Jual/Penggantian/DPP -> AMOUNT_BEFORE_TAX,
+//   Total amount -> TOTAL_INVOICE_AMOUNT, PPN -> INV_TAX_AMOUNT, Nomor Faktur Pajak -> INV_TAX_NO
 export const COLUMNS = [
-  { key: "suppInvNo", header: "SUPP_INV_NO", width: 22, max: 60, aliases: ["supplierinvoiceno", "noinvoicesupplier", "noinvoice", "invoiceno"] },
-  { key: "amountBeforeTax", header: "AMOUNT_BEFORE_TAX", width: 20, aliases: ["amountbeforetax", "dpp", "sebelumpajak", "nilaisebelumpajak"] },
-  { key: "totalInvoiceAmount", header: "TOTAL_INVOICE_AMOUNT", width: 22, aliases: ["totalinvoice", "totalamount", "grandtotal", "total"] },
-  { key: "invTaxAmount", header: "INV_TAX_AMOUNT", width: 18, aliases: ["taxamount", "ppn", "nilaipajak", "jumlahpajak"] },
-  { key: "invTaxNo", header: "INV_TAX_NO", width: 18, max: 60, aliases: ["taxno", "nofakturpajak", "nopajak", "fakturpajak"] },
+  { key: "suppInvNo", header: "SUPP_INV_NO", width: 22, max: 60, aliases: ["referensi", "supplierinvoiceno", "noinvoicesupplier", "noinvoice", "invoiceno"] },
+  { key: "amountBeforeTax", header: "AMOUNT_BEFORE_TAX", width: 20, aliases: ["hargajualpenggantiandpp", "amountbeforetax", "dpp", "sebelumpajak", "nilaisebelumpajak"] },
+  { key: "totalInvoiceAmount", header: "TOTAL_INVOICE_AMOUNT", width: 22, aliases: ["totalamount", "totalinvoice", "grandtotal", "total"] },
+  { key: "invTaxAmount", header: "INV_TAX_AMOUNT", width: 18, aliases: ["ppn", "taxamount", "nilaipajak", "jumlahpajak"] },
+  { key: "invTaxNo", header: "INV_TAX_NO", width: 18, max: 60, aliases: ["nomorfakturpajak", "taxno", "nofakturpajak", "nopajak", "fakturpajak"] },
+];
+
+// Layout template = layout export Coretax. `use` = kolom yang dipakai untuk QR.
+const TEMPLATE_COLUMNS = [
+  { header: " ", width: 4 },
+  { header: "NPWP Pembeli / Identitas lainnya", width: 20, text: true },
+  { header: "Nama Pembeli", width: 38 },
+  { header: "Kode Transaksi", width: 20 },
+  { header: "Nomor Faktur Pajak", width: 21, text: true, use: "invTaxNo" },
+  { header: "Tanggal Faktur Pajak", width: 20 },
+  { header: "Masa Pajak", width: 11 },
+  { header: "Tahun", width: 7 },
+  { header: "Status Faktur", width: 12 },
+  { header: "ESignStatus", width: 11 },
+  { header: "Harga Jual/Penggantian/DPP", width: 24, money: true, use: "amountBeforeTax" },
+  { header: "DPP Nilai Lain/DPP", width: 18, money: true },
+  { header: "PPN", width: 16, money: true, use: "invTaxAmount" },
+  { header: "PPnBM", width: 10, money: true },
+  { header: "Penandatangan", width: 22 },
+  { header: "Referensi", width: 20, text: true, use: "suppInvNo" },
+  { header: "Metode Input", width: 12 },
+  { header: "Dilaporkan oleh Penjual", width: 12 },
+  { header: "Dilaporkan oleh Pemungut PPN", width: 12 },
+  { header: "IsShowClearName", width: 12 },
+  { header: "Total amount", width: 18, money: true, use: "totalInvoiceAmount" },
 ];
 
 // Field angka: boleh desimal, tidak boleh negatif
@@ -99,7 +127,7 @@ export async function parseInvoiceWorkbook(buffer) {
   if (!ws) return { error: "File Excel kosong" };
 
   const header = findHeader(ws);
-  if (!header) return { error: 'Kolom "SUPP_INV_NO" tidak ditemukan. Gunakan template import invoice.' };
+  if (!header) return { error: 'Kolom "Referensi" / "SUPP_INV_NO" tidak ditemukan. Gunakan template import invoice.' };
 
   const rows = [];
   for (let r = header.row + 1; r <= ws.rowCount; r++) {
@@ -109,6 +137,12 @@ export async function parseInvoiceWorkbook(buffer) {
     };
     const values = Object.fromEntries(COLUMNS.map((c) => [c.key, text(c.key)]));
     if (Object.values(values).every((v) => !v)) continue;
+    // Total kosong (mis. rumus belum terhitung) -> hitung DPP + PPN
+    if (!values.totalInvoiceAmount) {
+      const dpp = parseNumber(values.amountBeforeTax);
+      const ppn = parseNumber(values.invTaxAmount);
+      if (dpp.ok && ppn.ok) values.totalInvoiceAmount = String(Math.round((dpp.value + ppn.value) * 100) / 100);
+    }
     rows.push(validateRow(values, r));
   }
 
@@ -116,45 +150,51 @@ export async function parseInvoiceWorkbook(buffer) {
   return { rows };
 }
 
-// ===== Template Excel =====
+// ===== Template Excel (layout export Coretax) =====
 export async function buildInvoiceTemplate() {
   const wb = new ExcelJS.Workbook();
-  const ws = wb.addWorksheet("Invoice", { views: [{ state: "frozen", ySplit: 1 }] });
-  ws.columns = COLUMNS.map((c) => ({ header: c.header, key: c.key, width: c.width }));
-
-  // SUPP_INV_NO & INV_TAX_NO sebagai TEKS supaya nol di depan & nomor panjang tidak rusak
-  ws.getColumn("suppInvNo").numFmt = "@";
-  ws.getColumn("invTaxNo").numFmt = "@";
+  const ws = wb.addWorksheet("data", { views: [{ state: "frozen", ySplit: 1 }] });
+  ws.columns = TEMPLATE_COLUMNS.map((c) => ({ header: c.header, width: c.width }));
 
   const thin = { style: "thin" };
-  ws.getRow(1).eachCell((cell) => {
-    cell.font = { bold: true, color: { argb: "FFFFFFFF" } };
-    cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF1F4E78" } };
+  TEMPLATE_COLUMNS.forEach((c, i) => {
+    const col = ws.getColumn(i + 1);
+    if (c.text) col.numFmt = "@"; // teks: jaga nol depan & nomor panjang
+    if (c.money) col.numFmt = "#,##0";
+    const cell = ws.getCell(1, i + 1);
+    // Kolom yang dipakai untuk QR diberi warna biru, sisanya abu-abu (opsional)
+    cell.font = { bold: true, color: { argb: c.use ? "FFFFFFFF" : "FF404040" } };
+    cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: c.use ? "FF1F4E78" : "FFD9D9D9" } };
     cell.alignment = { vertical: "middle", horizontal: "center", wrapText: true };
     cell.border = { top: thin, left: thin, bottom: thin, right: thin };
   });
+  ws.getRow(1).height = 32;
 
-  ws.addRow({
-    suppInvNo: "00176.I.23",
-    amountBeforeTax: 1195780140,
-    totalInvoiceAmount: 1327315955,
-    invTaxAmount: 146004755.05,
-    invTaxNo: "0100032361617140",
-  });
+  const sample = [
+    null, "0010000990092000", "TOYOTA MOTOR MANUFACTURING INDONESIA", "04 - DPP Nilai Lain",
+    "04002600498490662", "2026-11-13T00:00:00", "November", "2026", "APPROVED", "Done",
+    232000000, 212666667, 25520000, 0, "SIGIT WIDI HATMONO", "3010/STEP/XI/2026", "XML", false, null, null,
+  ];
+  const row = ws.addRow(sample);
+  row.getCell(21).value = { formula: `K${row.number}+M${row.number}`, result: 257520000 };
 
   const guide = wb.addWorksheet("PETUNJUK");
   guide.columns = [{ width: 115 }];
   [
     "PETUNJUK IMPORT INVOICE — VISION QR",
     "",
-    '1. Isi data di sheet "Invoice" mulai baris 2. Satu baris = satu invoice = satu QR.',
-    "2. Semua kolom wajib diisi.",
-    "3. SUPP_INV_NO dan INV_TAX_NO berupa teks (kolomnya sudah diformat teks). SUPP_INV_NO tidak boleh dobel.",
-    "   Penting: ketik nomor faktur pajak sebagai teks agar nol di depan & 16 digit tidak berubah.",
-    "4. AMOUNT_BEFORE_TAX, TOTAL_INVOICE_AMOUNT, INV_TAX_AMOUNT berupa angka. Pemisah ribuan",
-    "   otomatis dibuang; nilai dipakai apa adanya (contoh 25.000.000 => 25000000).",
+    '1. Format sama dengan export Faktur Keluaran Coretax. File export Coretax bisa langsung di-import.',
+    '2. Isi data di sheet "data" mulai baris 2. Satu baris = satu invoice = satu QR.',
+    "3. Kolom yang dipakai (header biru), sisanya (abu-abu) boleh dikosongkan:",
+    "   - Referensi                    -> SUPP_INV_NO (wajib, tidak boleh dobel)",
+    "   - Harga Jual/Penggantian/DPP   -> AMOUNT_BEFORE_TAX",
+    "   - PPN                          -> INV_TAX_AMOUNT",
+    "   - Total amount                 -> TOTAL_INVOICE_AMOUNT (kalau kosong otomatis = Harga Jual + PPN)",
+    "   - Nomor Faktur Pajak           -> INV_TAX_NO (wajib, ketik sebagai teks agar nol depan tidak hilang)",
+    "4. Angka: pemisah ribuan otomatis dibuang (contoh 25.000.000 => 25000000).",
     "5. QR berisi teks terenkripsi dari: VISION|SUPP_INV_NO|AMOUNT_BEFORE_TAX|TOTAL_INVOICE_AMOUNT|INV_TAX_AMOUNT|INV_TAX_NO",
-    "6. Hapus baris contoh sebelum import. Nama file QR hasil = SUPP_INV_NO.png",
+    "6. Hapus baris contoh sebelum import. Nama file QR = Referensi (karakter / diganti _), mis. 3010_STEP_XI_2026.png",
+    "7. Template lama (header SUPP_INV_NO, AMOUNT_BEFORE_TAX, dst.) masih bisa di-import.",
   ].forEach((line, i) => {
     const cell = guide.getCell(i + 1, 1);
     cell.value = line;

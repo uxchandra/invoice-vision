@@ -217,7 +217,7 @@ app.get("/api/export-excel", async (_req, res) => {
     { header: "TOTAL_INVOICE_AMOUNT", key: "totalInvoiceAmount", width: 22 },
     { header: "INV_TAX_AMOUNT", key: "invTaxAmount", width: 18 },
     { header: "INV_TAX_NO", key: "invTaxNo", width: 18 },
-    { header: "QR", key: "qr", width: 12 },
+    { header: "QR", key: "qr", width: 18 },
     { header: "FILE", key: "file", width: 24 },
   ];
   const thin = { style: "thin" };
@@ -240,7 +240,7 @@ app.get("/api/export-excel", async (_req, res) => {
       qr: "",
       file: r.file,
     });
-    row.height = 60;
+    row.height = 92; // muat QR 3 x 3 cm (~85pt)
     row.getCell("suppInvNo").numFmt = "@"; // teks: jaga nol depan
     row.getCell("invTaxNo").numFmt = "@";
     [2, 3, 4].forEach((c) => (row.getCell(c).numFmt = "#,##0"));
@@ -250,7 +250,8 @@ app.get("/api/export-excel", async (_req, res) => {
       const buffer = await fs.readFile(path.join(QR_DIR, r.file));
       const imgId = wb.addImage({ buffer, extension: "png" });
       // kolom QR = index 5 (0-based), baris data mulai 1 (0-based untuk row index)
-      ws.addImage(imgId, { tl: { col: 5.2, row: row.number - 1 + 0.1 }, ext: { width: 72, height: 72 } });
+      // 3 x 3 cm @96 DPI = 113 x 113 px
+      ws.addImage(imgId, { tl: { col: 5.1, row: row.number - 1 + 0.05 }, ext: { width: 113, height: 113 } });
     } catch {
       /* lewati jika file hilang */
     }

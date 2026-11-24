@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import zlib from "node:zlib";
 import QRCode from "qrcode";
 
 // ============================================================================
@@ -59,14 +60,37 @@ export function decrypt(base64, privateKey) {
   return Buffer.concat([d.update(Buffer.from(base64, "base64")), d.final()]).toString("ascii");
 }
 
-// PNG buffer QR dari string terenkripsi (ZXing: UTF-8, 500x500)
+// Ukuran cetak QR: 3 x 3 cm. Resolusi tetap 500x500 px (tajam saat dicetak),
+// tapi metadata DPI (chunk pHYs) diset supaya Word/Excel/dll langsung
+// menampilkannya 3 x 3 cm saat disisipkan, tanpa perlu resize manual.
+export const QR_SIZE_CM = 3;
+export const QR_SIZE_PX = 500;
+
+// Sisipkan chunk pHYs (pixels per meter) tepat setelah IHDR
+function setPngPhysicalSize(png, sizePx, sizeCm) {
+  const ppm = Math.round(sizePx / (sizeCm / 100));
+  const data = Buffer.alloc(9);
+  data.writeUInt32BE(ppm, 0);
+  data.writeUInt32BE(ppm, 4);
+  data[8] = 1; // unit: meter
+  const type = Buffer.from("pHYs", "ascii");
+  const len = Buffer.alloc(4);
+  len.writeUInt32BE(9, 0);
+  const crc = Buffer.alloc(4);
+  crc.writeUInt32BE(zlib.crc32(Buffer.concat([type, data])) >>> 0, 0);
+  const ihdrEnd = 8 + 4 + 4 + 13 + 4; // signature + IHDR (len, type, data, crc)
+  return Buffer.concat([png.subarray(0, ihdrEnd), len, type, data, crc, png.subarray(ihdrEnd)]);
+}
+
+// PNG buffer QR dari string terenkripsi (ZXing: UTF-8, 500x500), ukuran cetak 3x3 cm
 export async function makeQrPng(payload) {
-  return QRCode.toBuffer(payload, {
+  const png = await QRCode.toBuffer(payload, {
     type: "png",
     errorCorrectionLevel: "M",
-    width: 500,
+    width: QR_SIZE_PX,
     margin: 4,
   });
+  return setPngPhysicalSize(png, QR_SIZE_PX, QR_SIZE_CM);
 }
 
 // Satu langkah: row -> { plaintext, payload, png }

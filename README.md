@@ -47,15 +47,19 @@ Buka http://localhost:4000
 
 ## Kolom Excel
 
-| Kolom | Wajib | Keterangan |
-|---|---|---|
-| SUPP_INV_NO | ya | Nomor invoice supplier (teks, tidak boleh dobel) |
-| AMOUNT_BEFORE_TAX | ya | Angka (otomatis 2 desimal di QR) |
-| TOTAL_INVOICE_AMOUNT | ya | Angka |
-| INV_TAX_AMOUNT | ya | Angka |
-| INV_TAX_NO | ya | Nomor faktur pajak — **ketik sebagai teks** agar nol depan/16 digit utuh |
+Template import = layout **export Faktur Keluaran Coretax**, jadi file export Coretax
+bisa langsung di-import. Kolom yang dipakai:
 
-Header tidak case-sensitive dan mengenali beberapa alias (lihat `src/excel.js`).
+| Kolom Coretax | Field QR | Keterangan |
+|---|---|---|
+| Referensi | SUPP_INV_NO | Wajib, tidak boleh dobel. Nama file QR = Referensi (`/` → `_`) |
+| Harga Jual/Penggantian/DPP | AMOUNT_BEFORE_TAX | Angka |
+| PPN | INV_TAX_AMOUNT | Angka |
+| Total amount | TOTAL_INVOICE_AMOUNT | Angka; kalau kosong otomatis = Harga Jual + PPN |
+| Nomor Faktur Pajak | INV_TAX_NO | Wajib, **ketik sebagai teks** agar nol depan utuh |
+
+Kolom lain diabaikan. Template lama (header `SUPP_INV_NO`, `AMOUNT_BEFORE_TAX`, dst.)
+masih diterima. Header tidak case-sensitive dan mengenali beberapa alias (lihat `src/excel.js`).
 
 ## Struktur
 

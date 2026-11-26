@@ -302,23 +302,18 @@ document.querySelectorAll(".tab").forEach(t => t.onclick = () => {
   else if(file) $("#file").dispatchEvent(new Event("change"));
 });
 
-// Angka tampil 1.234.567,89 — dikirim ke server sebagai 1234567.89
-const toRaw = (s) => s.replace(/\./g, "").replace(",", ".");
-function fmtMoney(s){
-  s = s.replace(/[^\d,]/g, "");
-  const [int, ...dec] = s.split(",");
-  const grouped = int.replace(/^0+(?=\d)/, "").replace(/\B(?=(\d{3})+(?!\d))/g, ".");
-  return dec.length ? `${grouped},${dec.join("").slice(0,2)}` : grouped;
-}
-document.querySelectorAll(".money").forEach(el => el.oninput = () => { el.value = fmtMoney(el.value); });
+// Input manual dibiarkan apa adanya (tanpa pemisah ribuan otomatis).
+// Angka diketik polos; 2 digit terakhir otomatis jadi desimal saat membuat QR.
+// Batasi hanya digit supaya tidak ada titik/koma nyasar.
+document.querySelectorAll(".money").forEach(el => el.oninput = () => { el.value = el.value.replace(/[^\d]/g, ""); });
 
 function formValues(){
   return {
     suppInvNo: $("#fSupp").value.trim(),
     invTaxNo: $("#fTaxNo").value.trim(),
-    amountBeforeTax: toRaw($("#fDpp").value),
-    invTaxAmount: toRaw($("#fPpn").value),
-    totalInvoiceAmount: toRaw($("#fTotal").value),
+    amountBeforeTax: $("#fDpp").value.trim(),
+    invTaxAmount: $("#fPpn").value.trim(),
+    totalInvoiceAmount: $("#fTotal").value.trim(),
   };
 }
 

@@ -30,9 +30,15 @@ export function formatAmount(value) {
   return n.toFixed(2);
 }
 
-// Supplier Invoice No: garis miring diganti titik (3043/STEP/XI/26 -> 3043.STEP.XI.26)
+// Supplier Invoice No sesuai nilai "screen" sistem VISION:
+//  - garis miring "/" diganti titik "."
+//  - tahun 4 digit di segmen terakhir dipendekkan jadi 2 digit (2026 -> 26)
+// Contoh: 3031/STEP/XI/2026 -> 3031.STEP.XI.26
 export function formatSuppInvNo(value) {
-  return String(value ?? "").trim().replace(/\//g, ".");
+  const parts = String(value ?? "").trim().split("/");
+  const last = parts[parts.length - 1];
+  if (parts.length > 1 && /^\d{4}$/.test(last)) parts[parts.length - 1] = last.slice(-2);
+  return parts.join(".");
 }
 
 // Susun plaintext persis seperti contoh manual book

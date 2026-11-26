@@ -1,4 +1,5 @@
 import ExcelJS from "exceljs";
+import { formatSuppInvNo } from "./vision-qr.js";
 
 // ===== Kolom import invoice =====
 // Dikenali dari nama header (urutan bebas). Header dicari di 10 baris teratas.
@@ -101,7 +102,7 @@ export function validateRow(input, baris) {
     if (c.max && values[c.key].length > c.max) errors.push(`${c.header} maksimal ${c.max} karakter`);
   }
 
-  data.suppInvNo = values.suppInvNo.replace(/\//g, "."); // "/" -> "." sesuai format VISION
+  data.suppInvNo = formatSuppInvNo(values.suppInvNo); // "/" -> "." + tahun 4 digit -> 2 digit
   data.invTaxNo = values.invTaxNo;
 
   for (const key of NUMERIC_KEYS) {

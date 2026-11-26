@@ -101,7 +101,7 @@ export function validateRow(input, baris) {
     if (c.max && values[c.key].length > c.max) errors.push(`${c.header} maksimal ${c.max} karakter`);
   }
 
-  data.suppInvNo = values.suppInvNo;
+  data.suppInvNo = values.suppInvNo.replace(/\//g, "."); // "/" -> "." sesuai format VISION
   data.invTaxNo = values.invTaxNo;
 
   for (const key of NUMERIC_KEYS) {

@@ -11,7 +11,7 @@ import QRCode from "qrcode";
 //   Plaintext di-ASCII-kan lalu dienkripsi, hasilnya Base64.
 //   Plaintext format:
 //     VISION|<SUPP_INV_NO>|<AMOUNT_BEFORE_TAX>|<TOTAL_INVOICE_AMOUNT>|<INV_TAX_AMOUNT>|<INV_TAX_NO>
-//   dengan ketiga nilai amount diformat 2 desimal (mis. 45000 -> 45000.00).
+//   dengan SUPP_INV_NO "/" -> "." dan ketiga nilai amount diformat 2 desimal (mis. 45000 -> 45000.00).
 //   QR dibuat dari string Base64 tersebut (ZXing di aslinya; di sini library qrcode).
 // ============================================================================
 
@@ -23,19 +23,23 @@ export function validateKey(key) {
   return len === 16 || len === 24 || len === 32;
 }
 
-// Bersihkan amount: buang pemisah ribuan, pakai nilai apa adanya (tanpa paksa desimal).
-// Mengikuti app VISION: 25000000 -> "25000000", 146004755.05 -> "146004755.05".
+// Amount selalu 2 desimal: 50000 -> "50000.00", 146004755.05 -> "146004755.05".
 export function formatAmount(value) {
   const n = Number(String(value).replace(/,/g, "."));
   if (!Number.isFinite(n)) return String(value);
-  return String(n);
+  return n.toFixed(2);
+}
+
+// Supplier Invoice No: garis miring diganti titik (3043/STEP/XI/26 -> 3043.STEP.XI.26)
+export function formatSuppInvNo(value) {
+  return String(value ?? "").trim().replace(/\//g, ".");
 }
 
 // Susun plaintext persis seperti contoh manual book
 export function buildPlaintext(row) {
   return [
     QR_PREFIX,
-    row.suppInvNo,
+    formatSuppInvNo(row.suppInvNo),
     formatAmount(row.amountBeforeTax),
     formatAmount(row.totalInvoiceAmount),
     formatAmount(row.invTaxAmount),

@@ -68,7 +68,9 @@
   .form-grid { display:grid; grid-template-columns:minmax(0,1fr); gap:10px; max-width:620px; margin:0 0 16px; }
   .field { display:grid; grid-template-columns:200px minmax(0,1fr); align-items:center; gap:4px 16px; }
   .field label { display:block; font-weight:600; font-size:12px; color:var(--muted); letter-spacing:.2px; }
-  @media (max-width:700px) { .field { grid-template-columns:minmax(0,1fr); } }
+  .field .hint { grid-column:2; font-size:11px; color:var(--muted); margin-top:-1px; }
+  .field .hint code { font-family:var(--font); background:var(--brand-soft); color:var(--brand); padding:1px 5px; border-radius:4px; }
+  @media (max-width:700px) { .field { grid-template-columns:minmax(0,1fr); } .field .hint { grid-column:1; } }
   .inp { width:100%; font:500 13.5px var(--font); color:var(--ink); height:34px; padding:0 10px; background:var(--paper);
          border:1px solid var(--line-strong); border-radius:7px; transition:border-color .15s, box-shadow .15s; }
   .inp::placeholder { color:#b3a994; }
@@ -179,23 +181,28 @@
       <form id="manualForm" class="form-grid" autocomplete="off">
         <div class="field">
           <label for="fSupp">SUPP_INV_NO </label>
-          <input class="inp" id="fSupp" name="suppInvNo"/>
+          <input class="inp" id="fSupp" name="suppInvNo" placeholder="3043/STEP/XI/2026"/>
+          <span class="hint">contoh: <code>3043/STEP/XI/2026</code></span>
         </div>
         <div class="field">
           <label for="fDpp">AMOUNT_BEFORE_TAX </label>
-          <input class="inp money" id="fDpp" name="amountBeforeTax" inputmode="decimal"  />
+          <input class="inp money" id="fDpp" name="amountBeforeTax" inputmode="decimal" placeholder="409959.00" />
+          <span class="hint">contoh: <code>409959.00</code></span>
         </div>
         <div class="field">
           <label for="fTotal">TOTAL_INVOICE_AMOUNT</label>
-          <input class="inp money" id="fTotal" name="totalInvoiceAmount" inputmode="decimal"  />
+          <input class="inp money" id="fTotal" name="totalInvoiceAmount" inputmode="decimal" placeholder="455054.00" />
+          <span class="hint">contoh: <code>455054.00</code></span>
         </div>
         <div class="field">
           <label for="fPpn">INV_TAX_AMOUNT </label>
-          <input class="inp money" id="fPpn" name="invTaxAmount" inputmode="decimal"  />
+          <input class="inp money" id="fPpn" name="invTaxAmount" inputmode="decimal" placeholder="45095.00" />
+          <span class="hint">contoh: <code>45095.00</code></span>
         </div>
         <div class="field">
           <label for="fTaxNo">INV_TAX_NO </label>
-          <input class="inp" id="fTaxNo" name="invTaxNo" inputmode="numeric"  />
+          <input class="inp" id="fTaxNo" name="invTaxNo" inputmode="numeric" placeholder="04002600499866512" />
+          <span class="hint">contoh: <code>04002600499866512</code></span>
         </div>
       </form>
       <div class="row">
@@ -302,10 +309,14 @@ document.querySelectorAll(".tab").forEach(t => t.onclick = () => {
   else if(file) $("#file").dispatchEvent(new Event("change"));
 });
 
-// Input manual dibiarkan apa adanya (tanpa pemisah ribuan otomatis).
-// Angka diketik polos; 2 digit terakhir otomatis jadi desimal saat membuat QR.
-// Batasi hanya digit supaya tidak ada titik/koma nyasar.
-document.querySelectorAll(".money").forEach(el => el.oninput = () => { el.value = el.value.replace(/[^\d]/g, ""); });
+// Input manual seperti app VISION: boleh ketik titik desimal sendiri (mis. 409959.00).
+// Tanpa pemisah ribuan otomatis. Hanya digit + satu titik yang diterima.
+document.querySelectorAll(".money").forEach(el => el.oninput = () => {
+  let v = el.value.replace(/[^\d.]/g, "");
+  const i = v.indexOf(".");
+  if (i !== -1) v = v.slice(0, i + 1) + v.slice(i + 1).replace(/\./g, "");
+  el.value = v;
+});
 
 function formValues(){
   return {

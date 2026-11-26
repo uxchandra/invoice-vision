@@ -23,18 +23,12 @@ export function validateKey(key) {
   return len === 16 || len === 24 || len === 32;
 }
 
-// Amount: 2 digit terakhir dianggap desimal (sen), seperti app VISION.
-//   40995900 -> "409959.00",  4509500 -> "45095.00".
-// Kalau nilai sudah mengandung titik desimal, dipakai apa adanya (2 desimal).
+// Amount = nilai utuh dari data (Coretax), cukup tambah 2 desimal:
+//   232000000 -> "232000000.00",  409959 -> "409959.00",  409959.5 -> "409959.50".
+// Sesuai app VISION: TIDAK ada pembagian /100.
 export function formatAmount(value) {
-  const s = String(value ?? "").trim().replace(/,/g, ".");
-  if (s === "") return "0.00";
-  if (s.includes(".")) {
-    const n = Number(s);
-    return Number.isFinite(n) ? n.toFixed(2) : s;
-  }
-  const digits = s.replace(/[^\d]/g, "").padStart(3, "0"); // minimal 3 digit untuk x.xx
-  return `${digits.slice(0, -2).replace(/^0+(?=\d)/, "")}.${digits.slice(-2)}`;
+  const n = Number(String(value ?? "").trim().replace(/,/g, "."));
+  return Number.isFinite(n) ? n.toFixed(2) : String(value ?? "");
 }
 
 // Supplier Invoice No sesuai nilai "screen" sistem VISION:
